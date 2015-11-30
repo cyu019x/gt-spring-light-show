@@ -1,27 +1,56 @@
 package com.musicalgorithm;
 
 import android.util.Log;
+import java.util.Arrays;
 
-/**
- * Created by yvinogradov on 11/4/2015.
- */
 public class MusicAlgorithm {
 
     public static float[] getMetrics(short[] inputStream) {
         float[] mag = new float[inputStream.length / 2];
         float average = 0f;
+        boolean beat = false;
         int j = 0;
         for (int i = 0; i < inputStream.length - 1; i += 2) {
-            mag[j] = (float) (Math.abs(inputStream[i]) + Math.abs(inputStream[i + 1])) / 2;
+            mag[i] = (float) (Math.abs(inputStream[i]) + Math.abs(inputStream[i + 1])) / 2;
             average += mag[j];
             j++;
+            if (i > 44032){
+                beat = isBeat(Arrays.copyOfRange(inputStream, i, i + 44032), 1024, true);
+            }
         }
         average /= mag.length;
-        float[] metrics = getColorsAndOpacity(average);
+        float[] metrics = getColorsAndOpacity(average, beat);
 
         return metrics;
-    }/*
+    }
+    public static boolean isBeat(short[] inputStream, int window, boolean useSensitivity) {
+        // http://www.flipcode.com/misc/BeatDetectionAlgorithms.pdf (only 1st section so far)
+        if (inputStream.length % window != 0)
+            return false;
+        int length = inputStream.length/window;
+        double se_avg = 0.0; // average sound energy over 44032 sample
+        double[] se_inst = new double[length]; // instantaneous sound energy over 1024 sample
+        double variance = 0.0;
+        double ratio = 1.3; //default good value of 1.3
+        for (int i = 0; i < inputStream.length; i++)
+            se_avg = se_avg + Math.pow(inputStream[i],2);
+        se_avg /= inputStream.length;
+        for (int i = 0; i < length; i++){
+            for (int j = i * window; i < inputStream.length; i++){
+                se_inst[i] = se_inst[i] + Math.pow(inputStream[j],2);
+                se_inst[i] /= window;
+            }
+        }
+        for (int i = 0; i < length; i++){
+            variance = variance + Math.pow(se_inst[i]-se_avg,2);
+        }
+        variance /= length;
+        if (useSensitivity)
+            ratio = -0.0025714 * variance + 1.5142857;
 
+        return se_inst[length - 1] > se_avg * ratio;
+    }
+	/*
     public static float[] getMetrics(short[] inputStream) {
         int lastBeat = 0;
         double bpm;
@@ -40,11 +69,10 @@ public class MusicAlgorithm {
         }
         average /= mag.length;
         float[] metrics = getColorsAndOpacity(average);
-
         return metrics;
     }*/
 
-    public static float[] getColorsAndOpacity(float amplitude) {
+    public static float[] getColorsAndOpacity(float amplitude, boolean isBeat) {
         float[] colors = new float[5];
         float opacity = 10f;
         /*if (!(amplitude == 0f)) {
@@ -107,11 +135,14 @@ public class MusicAlgorithm {
             colors[0] = 255 * amplitude / 14000;
             colors[1] = 228 * amplitude / 14000;
             colors[2] = 140 * amplitude / 14000;
-        } /*else if (amplitude <= 15000) {
-            colors[0] = 255 * amplitude / 15000;
-            colors[1] = 140 * amplitude / 15000;
-            colors[2] = 140 * amplitude/15000;
-        } */else {
+        } else {
+            colors[0] = 255;
+            colors[1] = 255;
+            colors[2] = 255;
+            //colors[3] = (127 + (amplitude / 16000) * 128) > 255 ? 255 : (127 + (amplitude / 16000) * 128);
+        }
+        // if it's a beat, bright white flash like max amplitude
+        if (isBeat){
             colors[0] = 255;
             colors[1] = 255;
             colors[2] = 255;
